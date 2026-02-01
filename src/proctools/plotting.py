@@ -170,7 +170,7 @@ def plot_axis_colour(
         dataframe[y_var],
         label=label_string,
         marker=marker_array[i],
-        markevery=(0.1 + offset, 0.15),
+        markevery=(0.1 + offset, spacing),
         color=colour_array[i],
         linestyle=linestyle,
         *args,
