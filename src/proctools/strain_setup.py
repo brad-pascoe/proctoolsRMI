@@ -1,171 +1,192 @@
 # Key functions and values for quarterscale analysis
+import re
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from enum import StrEnum
+from pathlib import Path
+from typing import ClassVar
+
 import numpy as np
-from enum import Enum
 
 
-class StrainProfile(Enum):
-    NoStrain = 0
-    ConstantVelocity = 1
-    ConstantStrain = 2
+class StrainProfile(StrEnum):
+    NoStrain = "NoStrain"
+    ConstantVelocity = "ConstantVelocity"
+    ConstantStrain = "ConstantStrain"
 
-    def __str__(self):
-        return self.name
-
-    def suffix(self):
+    def suffix(self) -> str:
         if self is StrainProfile.ConstantStrain:
             return "_CS"
         elif self is StrainProfile.ConstantVelocity:
             return "_CV"
-        else:
-            return ""
+        return ""
 
-    def abbrv(self):
+    def abbrv(self) -> str:
         if self is StrainProfile.ConstantStrain:
             return "CS"
         elif self is StrainProfile.ConstantVelocity:
             return "CV"
-        else:
-            return ""
+        return ""
 
-    def strain_label(self,nondim_strain,precision=2):
+    def strain_label(self, nondim_strain: float, precision: int = 2) -> str:
         if self is StrainProfile.ConstantStrain:
             return rf"$\widehat{{S}}={nondim_strain:.{precision}f}$"
         elif self is StrainProfile.ConstantVelocity:
             return rf"$\widehat{{S}}_0={nondim_strain:.{precision}f}$"
-
-
-class StrainInfo():
-    def __init__(self,StrainProfile,strain_rate,initial_strain_time=0.0,direction=None):
-        self.StrainProfile = StrainProfile
-        self.strain_rate = strain_rate
-        self.initial_strain_time = initial_strain_time
-        self.direction = direction
-
-    def get_suffix(self):
-        if self.StrainProfile == StrainProfile.ConstantStrain:
-            return "_CS"
-        elif self.StrainProfile == StrainProfile.ConstantVelocity:
-            return "_CV"
         return ""
 
+
+@dataclass
+class StrainInfo(ABC):
+    strain_rate: float
+    initial_strain_time: float = 0.0
+    direction: str | None = None
+
+    profile: ClassVar[StrainProfile]
+    _append_initial_subscript: ClassVar[bool] = False
+
+    def get_suffix(self) -> str:
+        return self.profile.suffix()
+
     def get_label(self, nondim_strain: float, precision: int = 2) -> str:
-        subscript = ""
-        if self.direction == "Axial":
-            subscript = "A"
-        elif self.direction == "Transverse":
-            subscript = "T"
+        subscript = {"Axial": "A", "Transverse": "T"}.get(self.direction, "")
+        if self._append_initial_subscript:
+            subscript = f"{subscript},0" if subscript else "0"
+        return rf"$\widehat{{S}}_{{{subscript}}}={nondim_strain:.{precision}f}$"
 
-        if self.StrainProfile == StrainProfile.ConstantVelocity:
-            if subscript == "":
-                subscript = "0"
-            else:
-                subscript += ",0"
+    def _active(self, t):
+        return t >= self.initial_strain_time
 
-        label = rf"$\widehat{{S}}_{{{subscript}}}={nondim_strain:.{precision}f}$"
-        return label
+    def get_strain(self, t):
+        t = np.asarray(t, dtype=float)
+        result = np.where(self._active(t), self._strain(t - self.initial_strain_time), 0.0)
+        return result if result.ndim else result.item()
 
-    def get_strain(self,t):
-        try:
-            strain = np.zeros_like(t)
-            if self.strain_rate != 0.0:
-                for i,t_val in enumerate(t):
-                    if t_val < self.initial_strain_time:
-                        continue
-                    elif self.StrainProfile == StrainProfile.ConstantStrain:
-                        strain[i] = self.strain_rate
-                    elif self.StrainProfile == StrainProfile.ConstantVelocity:
-                        strain[i] = self.strain_rate/(1+self.strain_rate*(t_val-self.initial_strain_time))
-        except TypeError:
-            if self.strain_rate != 0.0:
-                if t < self.initial_strain_time:
-                    return 0
-                elif self.StrainProfile == StrainProfile.ConstantStrain:
-                    strain = self.strain_rate
-                elif self.StrainProfile == StrainProfile.ConstantVelocity:
-                    strain = self.strain_rate/(1+self.strain_rate*(t-self.initial_strain_time))
-        return strain
+    def get_strain_drag(self, t):
+        return 0.0
 
-    def get_strain_drag(self,t):
-        if self.StrainProfile == StrainProfile.ConstantStrain:
-            return 0
-        elif self.StrainProfile == StrainProfile.ConstantVelocity:
-            return -self.get_strain(t)**2
-        return 0
+    def get_expansion(self, t):
+        t = np.asarray(t, dtype=float)
+        result = np.where(self._active(t), self._expansion(t - self.initial_strain_time), 1.0)
+        return result if result.ndim else result.item()
 
-    def get_expansion(self,t):
-        try:
-            expansion = np.ones_like(t)
-            for i,t_val in enumerate(t):
-                if t_val < self.initial_strain_time:
-                    continue
-                elif self.StrainProfile == StrainProfile.ConstantStrain:
-                    expansion[i] = np.exp(self.strain_rate*(t_val-self.initial_strain_time))
-                elif self.StrainProfile == StrainProfile.ConstantVelocity:
-                    expansion[i] = 1+self.strain_rate*(t_val-self.initial_strain_time)
-        except TypeError:
-            if self.strain_rate != 0.0:
-                if t < self.initial_strain_time:
-                    expansion = 1
-                elif self.StrainProfile == StrainProfile.ConstantStrain:
-                    expansion = np.exp(self.strain_rate*(t-self.initial_strain_time))
-                elif self.StrainProfile == StrainProfile.ConstantVelocity:
-                    expansion = 1+self.strain_rate*(t-self.initial_strain_time)
-
-        return expansion
-
-    def get_alternate_time(self,t):
-        t_hat = t.copy()
+    def get_alternate_time(self, t):
+        t = np.asarray(t, dtype=float)
         if self.strain_rate == 0.0:
-            return t_hat
+            return t.copy() if t.ndim else t.item()
+        dt = t - self.initial_strain_time
+        result = np.where(self._active(t), self.initial_strain_time + self._alternate_time(dt), t)
+        return result if result.ndim else result.item()
 
-        for i in range(len(t)):
-            if t[i] <= self.initial_strain_time:
-                continue
-            elif self.StrainProfile == StrainProfile.ConstantStrain:
-                t_hat[i] = self.initial_strain_time + (1.0-np.exp(-self.strain_rate*(t[i]-self.initial_strain_time)))/self.strain_rate
-            elif self.StrainProfile == StrainProfile.ConstantVelocity:
-                t_hat[i] = self.initial_strain_time + np.log(1+self.strain_rate*(t[i]-self.initial_strain_time))/self.strain_rate
-
-        return t_hat
-
-    def get_axial_linear_model(self,t,U0):
+    def get_axial_linear_model(self, t, U0):
         if self.initial_strain_time != 0:
             print("Linear model assumes initial strain time is zero!")
-
         if self.strain_rate == 0.0:
-            theory = t*U0
-        elif self.StrainProfile == StrainProfile.ConstantStrain:
-            theory = U0/self.strain_rate * (np.exp(self.strain_rate*t)-1)
-        elif self.StrainProfile == StrainProfile.ConstantVelocity:
-            expansion = 1 + self.strain_rate*t
-            theory = U0/self.strain_rate * expansion * np.log(expansion)
+            return t * U0
+        return self._axial_linear_model(t, U0)
 
-        return theory
-
-    def get_linear_model(self,t,U0):
+    def get_linear_model(self, t, U0):
         if self.initial_strain_time != 0:
             print("Linear model assumes initial strain time is zero!")
-
         if self.strain_rate == 0.0:
-            theory = t*U0
-        elif self.StrainProfile == StrainProfile.ConstantStrain:
-            theory = U0/self.strain_rate * (np.exp(self.strain_rate*t)-1.0)
-        elif self.StrainProfile == StrainProfile.ConstantVelocity:
-            theory = U0/self.strain_rate * (1.0+self.strain_rate*t)*np.log(1+self.strain_rate*t)
+            return t * U0
+        return self._linear_model(t, U0)
 
-        return theory
+    @abstractmethod
+    def _strain(self, dt):
+        ...
+
+    @abstractmethod
+    def _expansion(self, dt):
+        ...
+
+    @abstractmethod
+    def _alternate_time(self, dt):
+        ...
+
+    @abstractmethod
+    def _axial_linear_model(self, t, U0):
+        ...
+
+    @abstractmethod
+    def _linear_model(self, t, U0):
+        ...
 
 
-def get_strain_case_folders(dir: str,
+class NoStrainInfo(StrainInfo):
+    profile: ClassVar[StrainProfile] = StrainProfile.NoStrain
+
+    def _strain(self, dt):
+        return 0.0
+
+    def _expansion(self, dt):
+        return 1.0
+
+    def _alternate_time(self, dt):
+        return dt
+
+    def _axial_linear_model(self, t, U0):
+        return t * U0
+
+    def _linear_model(self, t, U0):
+        return t * U0
+
+
+class ConstantStrainInfo(StrainInfo):
+    """Strain rate held fixed: S(t) = S0."""
+
+    profile: ClassVar[StrainProfile] = StrainProfile.ConstantStrain
+
+    def _strain(self, dt):
+        return self.strain_rate
+
+    def _expansion(self, dt):
+        return np.exp(self.strain_rate * dt)
+
+    def _alternate_time(self, dt):
+        return (1.0 - np.exp(-self.strain_rate * dt)) / self.strain_rate
+
+    def _axial_linear_model(self, t, U0):
+        return U0 / self.strain_rate * (np.exp(self.strain_rate * t) - 1)
+
+    def _linear_model(self, t, U0):
+        return U0 / self.strain_rate * (np.exp(self.strain_rate * t) - 1.0)
+
+
+class ConstantVelocityStrainInfo(StrainInfo):
+    """Strain velocity held fixed: S(t) = S0 / (1 + S0*t)."""
+
+    profile: ClassVar[StrainProfile] = StrainProfile.ConstantVelocity
+    _append_initial_subscript: ClassVar[bool] = True
+
+    def _strain(self, dt):
+        return self.strain_rate / (1 + self.strain_rate * dt)
+
+    def get_strain_drag(self, t):
+        return -self.get_strain(t) ** 2
+
+    def _expansion(self, dt):
+        return 1 + self.strain_rate * dt
+
+    def _alternate_time(self, dt):
+        return np.log(1 + self.strain_rate * dt) / self.strain_rate
+
+    def _axial_linear_model(self, t, U0):
+        expansion = 1 + self.strain_rate * t
+        return U0 / self.strain_rate * expansion * np.log(expansion)
+
+    def _linear_model(self, t, U0):
+        return U0 / self.strain_rate * (1.0 + self.strain_rate * t) * np.log(1 + self.strain_rate * t)
+
+
+def get_strain_case_folders(dir: str | Path,
                             strain_filter: float = None,
                             cfl_filter: float = None,
                             cell_filter: int = None,
                             profile_filter: StrainProfile = None) \
-        -> list[str]:
-    import os
-    import re
-
-    all_cases = os.listdir(dir)
+        -> list[tuple[Path, StrainProfile | None, float, float | None, int | None]]:
+    dir = Path(dir)
+    all_cases = [p.name for p in dir.iterdir()]
     desired_cases = []
     for case in all_cases:
         if 'Strain' not in case:
@@ -210,6 +231,6 @@ def get_strain_case_folders(dir: str,
         if cell_filter is not None and cells != cell_filter:
             continue
 
-        desired_cases.append((os.path.join(dir,case),profile,strain,cfl,cells))
+        desired_cases.append((dir/case,profile,strain,cfl,cells))
 
     return desired_cases
