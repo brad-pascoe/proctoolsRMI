@@ -1,3 +1,4 @@
+from pathlib import Path
 import tecplot
 import pandas as pd
 from tecplot.constant import PlotType, AxisMode, TextAnchor, CoordSys, ColorMapDistribution
@@ -41,16 +42,16 @@ def parse_arguments() -> (str,str):
     return (plot_var,output_style)
 
 
-def get_plot3D_files(plot3d_directory: str, output_style="Time") -> (list[str],list[str]):
-    import os
+def get_plot3D_files(plot3d_directory: str | Path, output_style="Time") -> (list[Path],list[Path]):
     import re
     import numpy as np
-    if not os.path.exists(plot3d_directory):
+    plot3d_directory = Path(plot3d_directory)
+    if not plot3d_directory.exists():
         print(f'\t\tFolder does not exist: {plot3d_directory}')
         return (None,None)
 
-    gridfiles: list[str] = [os.path.join(plot3d_directory,x) for x in os.listdir(plot3d_directory) if not x.startswith('.') if r'.g' in x]
-    datafiles: list[str] = [os.path.join(plot3d_directory,x) for x in os.listdir(plot3d_directory) if not x.startswith('.') if r'.f' in x]
+    gridfiles: list[Path] = [x for x in plot3d_directory.iterdir() if not x.name.startswith('.') if r'.g' in x.name]
+    datafiles: list[Path] = [x for x in plot3d_directory.iterdir() if not x.name.startswith('.') if r'.f' in x.name]
 
     # Sort files depending on case
     if output_style == 'Time':
@@ -60,7 +61,7 @@ def get_plot3D_files(plot3d_directory: str, output_style="Time") -> (list[str],l
         data_timesteps: list[int] = []
         regex_string: str = r'\d+(?=\.)'
         for f in datafiles:
-            f_name = os.path.basename(f)
+            f_name = f.name
             time_match = re.match(regex_string,f_name)
             if time_match is None:
                 print(f"No match for {f_name}")
@@ -75,8 +76,7 @@ def get_plot3D_files(plot3d_directory: str, output_style="Time") -> (list[str],l
     return (gridfiles, datafiles)
 
 
-def get_plot3D_times_and_zones(datafiles: list[str], output_style='Time') -> (list[str], int):
-    import os
+def get_plot3D_times_and_zones(datafiles: list[Path], output_style='Time') -> (list[str], int):
     import re
 
     if output_style == "Time":
@@ -90,7 +90,7 @@ def get_plot3D_times_and_zones(datafiles: list[str], output_style='Time') -> (li
     all_times = []
     unique_times = {}
     for f in datafiles:
-        f_name = os.path.basename(f)
+        f_name = f.name
         time_match = re.match(regex_string,f_name)
         if time_match is None:
             print(f"No match for {f_name}")
@@ -196,25 +196,23 @@ def load_special_plot3D_data(gridfile: str, datafile: str, frame: tecplot.layout
     return dataset
 
 
-def read_scaling_factor_file(case_dir: str,
+def read_scaling_factor_file(case_dir: str | Path,
                              f1_folder: str = "f1Plot3D",
                              scaling_filename:str = "scaling_factor.dat") -> pd.DataFrame:
-    import os
-    scaling_file = os.path.join(case_dir,f1_folder,scaling_filename)
+    scaling_file = Path(case_dir)/f1_folder/scaling_filename
     scaling_file_cols = ('Time','XScale','YScale','ZScale')
     scaling_data = pd.read_fwf(scaling_file,header=None,names=scaling_file_cols)
     return scaling_data
 
 
-def extract_scaling_factor(filename: str, scaling_data: pd.DataFrame,varname="f1") -> tuple[float,float,float]:
-    import os
+def extract_scaling_factor(filename: str | Path, scaling_data: pd.DataFrame,varname="f1") -> tuple[float,float,float]:
     import re
 
     XScale = 1.0
     YScale = 1.0
     ZScale = 1.0
 
-    basename = os.path.basename(filename)
+    basename = Path(filename).name
     number_search = re.search(rf".+(?=(_{varname}).all.f)",basename)
     if number_search:
         time_value = float(number_search[0])

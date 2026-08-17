@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import numpy as np
 import pandas as pd
 from proctools.rmi import RMI_Parameters
@@ -24,17 +24,17 @@ def _omega_scaling(rmi_parameters: RMI_Parameters | None) -> float:
     return 1.0/(rmi_parameters.rhoplus_bar*rmi_parameters.lambda_bar**(-2)*rmi_parameters.U0**2)
 
 
-def load_integral_width_data(folder: str) -> pd.DataFrame:
+def load_integral_width_data(folder: str | Path) -> pd.DataFrame:
     integral_width_filename = "simulation_integral_width.dat"
     integral_width_cols = ["Time","W","Theta","Xi"]
-    integral_width_file = os.path.join(folder,integral_width_filename)
+    integral_width_file = Path(folder)/integral_width_filename
     return pd.read_fwf(integral_width_file,header=None,names=integral_width_cols,usecols=range(4))
 
 
-def load_michael_iw_data(folder: str) -> pd.DataFrame:
+def load_michael_iw_data(folder: str | Path) -> pd.DataFrame:
     integral_width_filename = "simulation_integral_width.dat"
     integral_width_cols = ["Time","W","h","Theta","Xi"]
-    integral_width_file = os.path.join(folder,integral_width_filename)
+    integral_width_file = Path(folder)/integral_width_filename
     return pd.read_fwf(integral_width_file,header=None,names=integral_width_cols,usecols=range(5))
 
 
@@ -44,17 +44,17 @@ def nondimensionalise_integral_width(integral_width_data: pd.DataFrame, rmi_para
     return integral_width_data
 
 
-def load_tke_data(folder: str) -> pd.DataFrame:
+def load_tke_data(folder: str | Path) -> pd.DataFrame:
     tke_filename = "simulation_tke.dat"
     tke_cols = ["Time","TKE","TKX","TKY","TKZ"]
-    tke_file = os.path.join(folder,tke_filename)
+    tke_file = Path(folder)/tke_filename
     return pd.read_fwf(tke_file,header=None,names=tke_cols,usecols=range(5))
 
 
-def load_michael_tke_data(folder: str) -> pd.DataFrame:
+def load_michael_tke_data(folder: str | Path) -> pd.DataFrame:
     tke_filename = "simulation_integral_ke.dat"
     tke_cols = ["Time","TKE","TKX","TKY","TKZ"]
-    tke_file = os.path.join(folder,tke_filename)
+    tke_file = Path(folder)/tke_filename
     return pd.read_fwf(tke_file,header=None,names=tke_cols,usecols=range(5))
 
 
@@ -69,10 +69,10 @@ def nondimensionalise_tke(tke_data: pd.DataFrame, rmi_parameters: RMI_Parameters
     return tke_data
 
 
-def load_vorticity_data(folder: str) -> pd.DataFrame:
+def load_vorticity_data(folder: str | Path) -> pd.DataFrame:
     vorticity_filename = "simulation_omega.dat"
     vorticity_cols = ["Time","Omega","OmegaX","OmegaY","OmegaZ"]
-    vorticity_file = os.path.join(folder,vorticity_filename)
+    vorticity_file = Path(folder)/vorticity_filename
     return pd.read_fwf(vorticity_file,header=None,names=vorticity_cols,usecols=range(5))
 
 
@@ -86,10 +86,10 @@ def nondimensionalise_vorticity(vorticity_data: pd.DataFrame, rmi_parameters: RM
     return vorticity_data
 
 
-def load_mix_limits_data(folder: str) -> pd.DataFrame:
+def load_mix_limits_data(folder: str | Path) -> pd.DataFrame:
     mix_filename = "simulation_mix_limits.dat"
     mix_cols = ["Time","Xmin","Xmax","XDiff","XCentre"]
-    mix_file = os.path.join(folder,mix_filename)
+    mix_file = Path(folder)/mix_filename
     mix_data = pd.read_fwf(mix_file,header=None,names=mix_cols,usecols=range(5))
     mix_data["Amplitude"] = mix_data["XDiff"]/2.0
     return mix_data
@@ -101,10 +101,10 @@ def nondimensionalise_mix_limits(mix_data: pd.DataFrame, rmi_parameters: RMI_Par
     return mix_data
 
 
-def load_bubblespike_data(folder: str) -> pd.DataFrame:
+def load_bubblespike_data(folder: str | Path) -> pd.DataFrame:
     bubblespike_filename = "simulation_bubblespike.dat"
     bubblespike_cols = ["Time", "XCentre","Hb","Hs"]
-    bubblespike_file = os.path.join(folder,bubblespike_filename)
+    bubblespike_file = Path(folder)/bubblespike_filename
     bubblespike_data = pd.read_fwf(bubblespike_file,header=None,names=bubblespike_cols)
     bubblespike_data["Ratio"] = bubblespike_data["Hs"]/bubblespike_data["Hb"]
     return bubblespike_data
@@ -119,13 +119,12 @@ def nondimensionalise_bubblespike(bubblespike_data: pd.DataFrame, rmi_parameters
     return bubblespike_data
 
 
-def load_spherical_mix_limits(folder: str, timeScaling: float = 1.0, radiusScaling: float = 1.0):
-    import os
+def load_spherical_mix_limits(folder: str | Path, timeScaling: float = 1.0, radiusScaling: float = 1.0):
     import pandas as pd
     mix_limits_filename = "MixLimits.dat"
     mix_limits_cols = ["Time","RadiusCentre","RadiusSpike","RadiusBubble","PeakUrRad","RadiusMin2"]
-    mix_limits_file = os.path.join(folder,mix_limits_filename)
-    if not os.path.exists(mix_limits_file):
+    mix_limits_file = Path(folder)/mix_limits_filename
+    if not mix_limits_file.exists():
         print(f"File {mix_limits_file} not found in directory {folder}")
         return None
     mix_limits_data = pd.read_fwf(mix_limits_file,header=None,names=mix_limits_cols)

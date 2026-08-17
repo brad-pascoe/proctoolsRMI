@@ -1,9 +1,9 @@
 # Key functions and values for quarterscale analysis
-import os
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 from typing import ClassVar
 
 import numpy as np
@@ -179,13 +179,14 @@ class ConstantVelocityStrainInfo(StrainInfo):
         return U0 / self.strain_rate * (1.0 + self.strain_rate * t) * np.log(1 + self.strain_rate * t)
 
 
-def get_strain_case_folders(dir: str,
+def get_strain_case_folders(dir: str | Path,
                             strain_filter: float = None,
                             cfl_filter: float = None,
                             cell_filter: int = None,
                             profile_filter: StrainProfile = None) \
-        -> list[str]:
-    all_cases = os.listdir(dir)
+        -> list[tuple[Path, StrainProfile | None, float, float | None, int | None]]:
+    dir = Path(dir)
+    all_cases = [p.name for p in dir.iterdir()]
     desired_cases = []
     for case in all_cases:
         if 'Strain' not in case:
@@ -230,6 +231,6 @@ def get_strain_case_folders(dir: str,
         if cell_filter is not None and cells != cell_filter:
             continue
 
-        desired_cases.append((os.path.join(dir,case),profile,strain,cfl,cells))
+        desired_cases.append((dir/case,profile,strain,cfl,cells))
 
     return desired_cases

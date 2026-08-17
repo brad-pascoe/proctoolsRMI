@@ -1,29 +1,29 @@
-import os
+from pathlib import Path
 import pandas as pd
 
 
-def load_pressure_fluc(folder: str,time2tau: float = 1) -> pd.DataFrame:
+def load_pressure_fluc(folder: str | Path,time2tau: float = 1) -> pd.DataFrame:
     pressure_filename = "simulation_pressure.dat"
     pressure_cols = ["Time", "PMin","PMax","PDiff"]
-    pressure_file = os.path.join(folder,pressure_filename)
+    pressure_file = Path(folder)/pressure_filename
     pressure_data = pd.read_fwf(pressure_file,header=None,names=pressure_cols)
     pressure_data["Tau"] = pressure_data["Time"]*time2tau
     return pressure_data
 
 
-def load_pressure_data(folder: str,time2tau: float = 1) -> pd.DataFrame:
+def load_pressure_data(folder: str | Path,time2tau: float = 1) -> pd.DataFrame:
     pressure_filename = "Simulation_Pressure.dat"
     pressure_cols = ["Time", "Mean","RMS"]
-    pressure_file = os.path.join(folder,pressure_filename)
+    pressure_file = Path(folder)/pressure_filename
     pressure_data = pd.read_fwf(pressure_file,header=None,names=pressure_cols)
     pressure_data["Tau"] = pressure_data["Time"]*time2tau
     return pressure_data
 
 
-def load_KL_data(folder: str, rmiparameters=None) -> pd.DataFrame:
+def load_KL_data(folder: str | Path, rmiparameters=None) -> pd.DataFrame:
     KL_filename = "simulation_KL.dat"
     KL_cols = ["Time", "K_mag","L_mag","W","beta"]
-    KL_file = os.path.join(folder,KL_filename)
+    KL_file = Path(folder)/KL_filename
     KL_data = pd.read_fwf(KL_file,header=None,names=KL_cols,usecols=range(5))
     if rmiparameters is not None:
         KL_data['Tau'] = KL_data['Time']*rmiparameters.time2tau
@@ -32,20 +32,17 @@ def load_KL_data(folder: str, rmiparameters=None) -> pd.DataFrame:
     return KL_data
 
 
-def load_JacVolMass_data(folder: str) -> pd.DataFrame:
+def load_JacVolMass_data(folder: str | Path) -> pd.DataFrame:
     JVM_filename = "Error_JacVolMass.dat"
     JVM_cols = ["Iteration","Time", "Jacobian","Volume","Mass"]
-    JVM_file = os.path.join(folder,JVM_filename)
+    JVM_file = Path(folder)/JVM_filename
     JVM_data = pd.read_fwf(JVM_file,header=None,names=JVM_cols,usecols=range(5))
     return JVM_data
 
 
-def load_error_norm_data(folder: str, variable: str) -> pd.DataFrame:
-    import os
-    import pandas as pd
-
+def load_error_norm_data(folder: str | Path, variable: str) -> pd.DataFrame:
     error_filename = f"ErrorNorm_{variable}.dat"
-    error_file = os.path.join(folder,error_filename)
+    error_file = Path(folder)/error_filename
     error_cols = ["Iteration","Time","L0","L1","L2"]
 
     error_data = pd.read_fwf(error_file,header=None,names=error_cols)
